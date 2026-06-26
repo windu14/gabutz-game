@@ -34,6 +34,9 @@ jobs:
       - name: Install Dependencies
         run: flutter pub get
 
+      - name: Fix flutter_inappwebview_android proguard issue
+        run: find ~/.pub-cache/hosted/pub.dev/flutter_inappwebview_android-*/android -name build.gradle -exec sed -i 's/proguard-android.txt/proguard-android-optimize.txt/g' {} +
+
       - name: Build APK Release
         run: flutter build apk --release
 
