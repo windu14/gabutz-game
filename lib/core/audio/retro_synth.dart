@@ -1,7 +1,7 @@
 // ignore_for_file: avoid_web_libraries_in_flutter, deprecated_member_use
 import 'package:flutter/foundation.dart';
-import 'dart:html' as html;
-import 'dart:js' as js;
+import 'package:universal_html/html.dart' as html;
+import 'package:universal_html/js.dart' as js;
 
 class RetroSynth {
   static final RetroSynth _instance = RetroSynth._internal();

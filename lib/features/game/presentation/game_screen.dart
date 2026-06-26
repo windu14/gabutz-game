@@ -10,8 +10,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'package:flutter_application_2/features/game/presentation/widgets/retro_loading.dart';
 import 'package:flutter_application_2/features/game/presentation/widgets/retro_fire_particles.dart';
-// ignore: avoid_web_libraries_in_flutter, deprecated_member_use
-import 'dart:html' as html;
+import 'package:universal_html/html.dart' as html;
 
 class GameScreen extends ConsumerStatefulWidget {
   final String gameMode;
