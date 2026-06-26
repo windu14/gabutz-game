@@ -2,6 +2,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:universal_html/html.dart' as html;
 import 'package:universal_html/js.dart' as js;
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 class RetroSynth {
   static final RetroSynth _instance = RetroSynth._internal();
@@ -11,13 +12,12 @@ class RetroSynth {
   }
 
   bool _initialized = false;
+  HeadlessInAppWebView? _headlessWebView;
 
-  void _init() {
-    if (!kIsWeb || _initialized) return;
-    try {
-      final script = html.ScriptElement()
-        ..type = 'text/javascript'
-        ..innerHtml = '''
+  void _init() async {
+    if (_initialized) return;
+    
+    final synthJs = '''
           window.retroSynthContext = window.retroSynthContext || (window.AudioContext || window.webkitAudioContext) ? new (window.AudioContext || window.webkitAudioContext)() : null;
           window.retroSynthLoop = null;
           window.retroSynthPlay = function() {
@@ -102,41 +102,72 @@ class RetroSynth {
             }, 120);
           };
         ''';
-      html.document.head!.append(script);
+    
+    if (kIsWeb) {
+      try {
+        final script = html.ScriptElement()
+          ..type = 'text/javascript'
+          ..innerHtml = synthJs;
+        html.document.head!.append(script);
+        _initialized = true;
+      } catch (e) {
+        debugPrint('Error init synth: $e');
+      }
+    } else {
+      _headlessWebView = HeadlessInAppWebView(
+        initialData: InAppWebViewInitialData(
+          data: "<!DOCTYPE html><html><head><script>$synthJs</script></head><body></body></html>"
+        ),
+        initialSettings: InAppWebViewSettings(
+          mediaPlaybackRequiresUserGesture: false,
+        ),
+      );
+      await _headlessWebView?.run();
       _initialized = true;
-    } catch (e) {
-      debugPrint('Error init synth: $e');
     }
   }
 
   void playBGM() {
-    if (!kIsWeb) return;
-    try {
-      js.context.callMethod('retroSynthPlay');
-    } catch (e) {
-      // Ignore
+    if (kIsWeb) {
+      try {
+        js.context.callMethod('retroSynthPlay');
+      } catch (e) {
+        // Ignore
+      }
+    } else {
+      _headlessWebView?.webViewController?.evaluateJavascript(source: 'retroSynthPlay()');
     }
   }
 
   void stopBGM() {
-    if (!kIsWeb) return;
-    try {
-      js.context.callMethod('retroSynthStop');
-    } catch (e) {
-      // Ignore
+    if (kIsWeb) {
+      try {
+        js.context.callMethod('retroSynthStop');
+      } catch (e) {
+        // Ignore
+      }
+    } else {
+      _headlessWebView?.webViewController?.evaluateJavascript(source: 'retroSynthStop()');
     }
   }
 
   void playPreview(String mode) {
-    if (!kIsWeb) return;
-    try {
+    if (kIsWeb) {
+      try {
+        stopBGM();
+        js.context.callMethod('retroSynthPlayPreview', [mode]);
+        Future.delayed(const Duration(seconds: 2), () {
+          playBGM();
+        });
+      } catch (e) {
+        // Ignore
+      }
+    } else {
       stopBGM();
-      js.context.callMethod('retroSynthPlayPreview', [mode]);
+      _headlessWebView?.webViewController?.evaluateJavascript(source: 'retroSynthPlayPreview("$mode")');
       Future.delayed(const Duration(seconds: 2), () {
         playBGM();
       });
-    } catch (e) {
-      // Ignore
     }
   }
 }

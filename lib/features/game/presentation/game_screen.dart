@@ -11,6 +11,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_application_2/features/game/presentation/widgets/retro_loading.dart';
 import 'package:flutter_application_2/features/game/presentation/widgets/retro_fire_particles.dart';
 import 'package:universal_html/html.dart' as html;
+import 'dart:collection';
 
 class GameScreen extends ConsumerStatefulWidget {
   final String gameMode;
@@ -42,38 +43,41 @@ class _GameScreenState extends ConsumerState<GameScreen> {
   void _setupWebBridge() {
     if (kIsWeb) {
       html.window.onMessage.listen((event) {
-        try {
-          final msg = event.data.toString();
-          if (msg.contains('"type":"HUD"')) {
-            final jsonStr = msg.substring(msg.indexOf('{'), msg.lastIndexOf('}') + 1);
-            final data = jsonDecode(jsonStr);
-            hudData.value = {
-              'score': data['score'] ?? 0,
-              'time': data['time'] ?? '0.0',
-              'lives': data['lives'] ?? 5,
-              'combo': data['combo'] ?? 1,
-            };
-          } else if (msg.contains('"type":"GAMEOVER"')) {
-            final jsonStr = msg.substring(msg.indexOf('{'), msg.lastIndexOf('}') + 1);
-            final data = jsonDecode(jsonStr);
-            final score = data['score'] as int;
-            ref.read(scoreProvider.notifier).updateScore(score);
-            ref.read(coinsProvider.notifier).addCoins(score ~/ 2);
-
-            if (mounted) {
-              Navigator.pop(context);
-            }
-          } else if (msg.contains('"type":"READY"')) {
-            if (mounted) {
-              setState(() {
-                _isPhaserReady = true;
-              });
-            }
-          }
-        } catch (e) {
-          // Ignore
-        }
+        _handleMessage(event.data.toString());
       });
+    }
+  }
+
+  void _handleMessage(String msg) {
+    try {
+      if (msg.contains('"type":"HUD"')) {
+        final jsonStr = msg.substring(msg.indexOf('{'), msg.lastIndexOf('}') + 1);
+        final data = jsonDecode(jsonStr);
+        hudData.value = {
+          'score': data['score'] ?? 0,
+          'time': data['time'] ?? '0.0',
+          'lives': data['lives'] ?? 5,
+          'combo': data['combo'] ?? 1,
+        };
+      } else if (msg.contains('"type":"GAMEOVER"')) {
+        final jsonStr = msg.substring(msg.indexOf('{'), msg.lastIndexOf('}') + 1);
+        final data = jsonDecode(jsonStr);
+        final score = data['score'] as int;
+        ref.read(scoreProvider.notifier).updateScore(score);
+        ref.read(coinsProvider.notifier).addCoins(score ~/ 2);
+
+        if (mounted) {
+          Navigator.pop(context);
+        }
+      } else if (msg.contains('"type":"READY"')) {
+        if (mounted) {
+          setState(() {
+            _isPhaserReady = true;
+          });
+        }
+      }
+    } catch (e) {
+      // Ignore
     }
   }
 
@@ -128,8 +132,29 @@ class _GameScreenState extends ConsumerState<GameScreen> {
               transparentBackground: true,
               disableContextMenu: true,
             ),
+            initialUserScripts: UnmodifiableListView<UserScript>([
+              UserScript(
+                source: """
+                  const originalPostMessage = window.parent.postMessage;
+                  window.parent.postMessage = function(message, targetOrigin) {
+                    if (window.flutter_inappwebview) {
+                       window.flutter_inappwebview.callHandler('postMessage', message);
+                    }
+                    if (originalPostMessage) {
+                      originalPostMessage.apply(window.parent, [message, targetOrigin]);
+                    }
+                  };
+                """,
+                injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+              )
+            ]),
             onWebViewCreated: (controller) {
               webViewController = controller;
+              controller.addJavaScriptHandler(handlerName: 'postMessage', callback: (args) {
+                 if (args.isNotEmpty) {
+                    _handleMessage(args[0].toString());
+                 }
+              });
             },
           ),
           
